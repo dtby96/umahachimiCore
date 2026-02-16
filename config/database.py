@@ -72,6 +72,7 @@ class Database:
             scrape_time TIME NOT NULL DEFAULT '16:00',
             bomb_trigger_days INTEGER NOT NULL DEFAULT 3,
             bomb_countdown_days INTEGER NOT NULL DEFAULT 7,
+            bombs_enabled BOOLEAN DEFAULT TRUE,
             is_active BOOLEAN DEFAULT TRUE,
             report_channel_id BIGINT,
             alert_channel_id BIGINT,
@@ -107,17 +108,29 @@ class Database:
         END $$;
         
         -- Migration: Add guild_id column if it doesn't exist
-        DO $$ 
+        DO $$
         BEGIN
             IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
+                SELECT 1 FROM information_schema.columns
                 WHERE table_name='clubs' AND column_name='guild_id'
             ) THEN
                 ALTER TABLE clubs ADD COLUMN guild_id BIGINT;
                 RAISE NOTICE 'Added guild_id column to clubs';
             END IF;
         END $$;
-        
+
+        -- Migration: Add bombs_enabled column if it doesn't exist
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='clubs' AND column_name='bombs_enabled'
+            ) THEN
+                ALTER TABLE clubs ADD COLUMN bombs_enabled BOOLEAN DEFAULT TRUE;
+                RAISE NOTICE 'Added bombs_enabled column to clubs';
+            END IF;
+        END $$;
+
         -- Members table
         CREATE TABLE IF NOT EXISTS members (
             member_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

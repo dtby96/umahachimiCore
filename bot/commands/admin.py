@@ -365,14 +365,27 @@ class AdminCommands(commands.Cog):
             )
 
             # Bomb management
-            newly_activated = await self.bomb_manager.check_and_activate_bombs(club_obj, current_date)
-            await self.bomb_manager.update_bomb_countdowns(club_obj.club_id, current_date)
-            deactivated = await self.bomb_manager.check_and_deactivate_bombs(club_obj.club_id, current_date)
-            members_to_kick = await self.bomb_manager.check_expired_bombs(club_obj.club_id)
+            newly_activated = []
+            deactivated = []
+            members_to_kick = []
+
+            if club_obj.bombs_enabled:
+                newly_activated = await self.bomb_manager.check_and_activate_bombs(club_obj, current_date)
+                await self.bomb_manager.update_bomb_countdowns(club_obj.club_id, current_date)
+                deactivated = await self.bomb_manager.check_and_deactivate_bombs(club_obj.club_id, current_date)
+                members_to_kick = await self.bomb_manager.check_expired_bombs(club_obj.club_id)
+                logger.info(f"Bomb checks complete for {club_obj.club_name}")
+            else:
+                logger.info(f"Skipping bomb management for {club_obj.club_name} (bombs disabled)")
 
             # Generate and send daily reports
             status_summary = await self.quota_calculator.get_member_status_summary(club_obj.club_id, current_date)
-            bombs_data = await self.bomb_manager.get_active_bombs_with_members(club_obj.club_id)
+
+            # Only fetch bomb data if bombs are enabled
+            if club_obj.bombs_enabled:
+                bombs_data = await self.bomb_manager.get_active_bombs_with_members(club_obj.club_id)
+            else:
+                bombs_data = []
 
             daily_reports = self.report_generator.create_daily_report(
                 club_obj.club_name, club_obj.daily_quota, status_summary, bombs_data, current_date

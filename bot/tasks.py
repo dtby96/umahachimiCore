@@ -223,31 +223,38 @@ class BotTasks:
                     return
 
                 # STEP 5: Bomb management
-                try:
-                    logger.info(f"💣 Checking for bomb activations in {club.club_name}...")
-                    newly_activated_bombs = await self.bomb_manager.check_and_activate_bombs(club, current_date)
+                newly_activated_bombs = []
+                deactivated_bombs = []
+                members_to_kick = []
 
-                    logger.info(f"⏳ Updating bomb countdowns for {club.club_name}...")
-                    await self.bomb_manager.update_bomb_countdowns(club.club_id, current_date)
+                if club.bombs_enabled:
+                    try:
+                        logger.info(f"💣 Checking for bomb activations in {club.club_name}...")
+                        newly_activated_bombs = await self.bomb_manager.check_and_activate_bombs(club, current_date)
 
-                    logger.info(f"✅ Checking for bomb deactivations in {club.club_name}...")
-                    deactivated_bombs = await self.bomb_manager.check_and_deactivate_bombs(club.club_id, current_date)
+                        logger.info(f"⏳ Updating bomb countdowns for {club.club_name}...")
+                        await self.bomb_manager.update_bomb_countdowns(club.club_id, current_date)
 
-                    logger.info(f"🚨 Checking for expired bombs in {club.club_name}...")
-                    members_to_kick = await self.bomb_manager.check_expired_bombs(club.club_id)
+                        logger.info(f"✅ Checking for bomb deactivations in {club.club_name}...")
+                        deactivated_bombs = await self.bomb_manager.check_and_deactivate_bombs(club.club_id, current_date)
 
-                    logger.info(
-                        f"Bomb management complete for {club.club_name}: "
-                        f"{len(newly_activated_bombs)} activated, "
-                        f"{len(deactivated_bombs)} deactivated, "
-                        f"{len(members_to_kick)} to kick"
-                    )
+                        logger.info(f"🚨 Checking for expired bombs in {club.club_name}...")
+                        members_to_kick = await self.bomb_manager.check_expired_bombs(club.club_id)
 
-                except Exception as e:
-                    logger.error(f"❌ Error during bomb management for {club.club_name}: {e}", exc_info=True)
-                    newly_activated_bombs = []
-                    deactivated_bombs = []
-                    members_to_kick = []
+                        logger.info(
+                            f"Bomb management complete for {club.club_name}: "
+                            f"{len(newly_activated_bombs)} activated, "
+                            f"{len(deactivated_bombs)} deactivated, "
+                            f"{len(members_to_kick)} to kick"
+                        )
+
+                    except Exception as e:
+                        logger.error(f"❌ Error during bomb management for {club.club_name}: {e}", exc_info=True)
+                        newly_activated_bombs = []
+                        deactivated_bombs = []
+                        members_to_kick = []
+                else:
+                    logger.info(f"⏭️ Skipping bomb management for {club.club_name} (bombs disabled)")
 
                 # STEP 6: Send DM notifications to linked users
                 try:
@@ -274,7 +281,12 @@ class BotTasks:
                 try:
                     logger.info(f"📊 Generating daily report for {club.club_name}...")
                     status_summary = await self.quota_calculator.get_member_status_summary(club.club_id, current_date)
-                    bombs_data = await self.bomb_manager.get_active_bombs_with_members(club.club_id)
+
+                    # Only fetch bomb data if bombs are enabled
+                    if club.bombs_enabled:
+                        bombs_data = await self.bomb_manager.get_active_bombs_with_members(club.club_id)
+                    else:
+                        bombs_data = []
 
                     daily_reports = self.report_generator.create_daily_report(
                         club.club_name, club.daily_quota, status_summary, bombs_data, current_date

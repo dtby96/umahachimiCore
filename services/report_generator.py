@@ -51,12 +51,21 @@ class ReportGenerator:
         behind_count = len(status_summary['behind'])
         bombs_count = len(bombs_data)
 
+        # Build summary text
+        summary_text = (
+            f"**Total Members:** {total}\n"
+            f"✅ On Track: {on_track_count}\n"
+            f"⚠️ Behind: {behind_count}"
+        )
+
+        # Only show bomb count if there are active bombs
+        # When bombs are disabled, bombs_data will be empty and this won't show
+        if bombs_count > 0:
+            summary_text += f"\n💣 Bombs Active: {bombs_count}"
+
         summary_embed.add_field(
             name="📈 Summary",
-            value=f"**Total Members:** {total}\n"
-                  f"✅ On Track: {on_track_count}\n"
-                  f"⚠️ Behind: {behind_count}\n"
-                  f"💣 Bombs Active: {bombs_count}",
+            value=summary_text,
             inline=False
         )
 
