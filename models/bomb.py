@@ -99,6 +99,20 @@ class Bomb:
             logger.info(f"Bomb countdown for member {self.member_id}: {self.days_remaining} days remaining")
     
     @classmethod
+    async def deactivate_all(cls, club_id: UUID, deactivation_date: date):
+        """Deactivate all active bombs for a club (when bombs are disabled)"""
+        query = """
+            UPDATE bombs
+            SET is_active = FALSE, deactivation_date = $1
+            WHERE club_id = $2 AND is_active = TRUE
+        """
+        result = await db.execute(query, deactivation_date, club_id)
+        # Extract count from result string like "UPDATE 5"
+        count = int(result.split()[-1]) if result.split()[-1].isdigit() else 0
+        logger.info(f"Deactivated {count} bombs for club {club_id} (bombs disabled)")
+        return count
+
+    @classmethod
     async def clear_all(cls, club_id: UUID):
         """Clear all bombs for a club (for monthly reset)"""
         query = "DELETE FROM bombs WHERE club_id = $1"

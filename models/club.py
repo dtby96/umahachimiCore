@@ -25,6 +25,7 @@ class Club:
     scrape_time: time
     bomb_trigger_days: int
     bomb_countdown_days: int
+    bombs_enabled: bool
     is_active: bool
     report_channel_id: Optional[int]
     alert_channel_id: Optional[int]
@@ -44,11 +45,11 @@ class Club:
             scrape_time = time(16, 0)
         
         query = """
-            INSERT INTO clubs (club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time, 
+            INSERT INTO clubs (club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
                              bomb_trigger_days, bomb_countdown_days)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                     bomb_trigger_days, bomb_countdown_days, is_active, report_channel_id,
+                     bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
                      alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
                      created_at, updated_at
         """
@@ -62,7 +63,7 @@ class Club:
         """Get club by ID"""
         query = """
             SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, is_active, report_channel_id,
+                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
                    alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
                    created_at, updated_at
             FROM clubs
@@ -78,7 +79,7 @@ class Club:
         """Get club by name"""
         query = """
             SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, is_active, report_channel_id,
+                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
                    alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
                    created_at, updated_at
             FROM clubs
@@ -94,7 +95,7 @@ class Club:
         """Get all active clubs"""
         query = """
             SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, is_active, report_channel_id,
+                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
                    alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
                    created_at, updated_at
             FROM clubs
@@ -109,7 +110,7 @@ class Club:
         """Get all clubs (active and inactive)"""
         query = """
             SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, is_active, report_channel_id,
+                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
                    alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
                    created_at, updated_at
             FROM clubs
@@ -123,7 +124,7 @@ class Club:
         """Get clubs registered to a specific guild, plus any pre-migration clubs (guild_id IS NULL)"""
         query = """
             SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, is_active, report_channel_id,
+                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
                    alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
                    created_at, updated_at
             FROM clubs
@@ -159,10 +160,10 @@ class Club:
     
     async def update_settings(self, **kwargs):
         """Update club settings"""
-        valid_fields = {'scrape_url', 'circle_id', 'daily_quota', 'timezone', 'scrape_time', 
-                       'bomb_trigger_days', 'bomb_countdown_days', 'report_channel_id',
-                       'alert_channel_id'}
-        
+        valid_fields = {'scrape_url', 'circle_id', 'daily_quota', 'timezone', 'scrape_time',
+                       'bomb_trigger_days', 'bomb_countdown_days', 'bombs_enabled',
+                       'report_channel_id', 'alert_channel_id'}
+
         updates = {k: v for k, v in kwargs.items() if k in valid_fields}
         if not updates:
             return

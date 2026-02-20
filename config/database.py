@@ -72,6 +72,7 @@ class Database:
             scrape_time TIME NOT NULL DEFAULT '16:00',
             bomb_trigger_days INTEGER NOT NULL DEFAULT 3,
             bomb_countdown_days INTEGER NOT NULL DEFAULT 7,
+            bombs_enabled BOOLEAN DEFAULT TRUE,
             is_active BOOLEAN DEFAULT TRUE,
             report_channel_id BIGINT,
             alert_channel_id BIGINT,
@@ -107,17 +108,29 @@ class Database:
         END $$;
         
         -- Migration: Add guild_id column if it doesn't exist
-        DO $$ 
+        DO $$
         BEGIN
             IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
+                SELECT 1 FROM information_schema.columns
                 WHERE table_name='clubs' AND column_name='guild_id'
             ) THEN
                 ALTER TABLE clubs ADD COLUMN guild_id BIGINT;
                 RAISE NOTICE 'Added guild_id column to clubs';
             END IF;
         END $$;
-        
+
+        -- Migration: Add bombs_enabled column if it doesn't exist
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='clubs' AND column_name='bombs_enabled'
+            ) THEN
+                ALTER TABLE clubs ADD COLUMN bombs_enabled BOOLEAN DEFAULT TRUE;
+                RAISE NOTICE 'Added bombs_enabled column to clubs';
+            END IF;
+        END $$;
+
         -- Members table
         CREATE TABLE IF NOT EXISTS members (
             member_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -302,6 +315,21 @@ class Database:
             locked_by VARCHAR(100) NOT NULL
         );
         
+        -- Club rank history table
+        CREATE TABLE IF NOT EXISTS club_rank_history (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            club_id UUID NOT NULL REFERENCES clubs(club_id) ON DELETE CASCADE,
+            date DATE NOT NULL,
+            club_rank INTEGER,
+            monthly_rank INTEGER,
+            scraped_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(club_id, date)
+        );
+
+        -- Migration: Add club_rank_history table if it doesn't exist (handled by CREATE TABLE IF NOT EXISTS above)
+        CREATE INDEX IF NOT EXISTS idx_club_rank_history_club_date
+            ON club_rank_history(club_id, date DESC);
+
         -- Indexes for performance
         CREATE INDEX IF NOT EXISTS idx_members_club_id ON members(club_id);
         CREATE INDEX IF NOT EXISTS idx_quota_history_club_id ON quota_history(club_id);
