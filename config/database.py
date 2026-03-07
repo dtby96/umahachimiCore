@@ -68,6 +68,7 @@ class Database:
             scrape_url TEXT NOT NULL,
             circle_id VARCHAR(100),
             daily_quota BIGINT NOT NULL DEFAULT 1000000,
+            quota_period VARCHAR(10) NOT NULL DEFAULT 'daily',
             timezone VARCHAR(100) NOT NULL DEFAULT 'Europe/Amsterdam',
             scrape_time TIME NOT NULL DEFAULT '16:00',
             bomb_trigger_days INTEGER NOT NULL DEFAULT 3,
@@ -128,6 +129,18 @@ class Database:
             ) THEN
                 ALTER TABLE clubs ADD COLUMN bombs_enabled BOOLEAN DEFAULT TRUE;
                 RAISE NOTICE 'Added bombs_enabled column to clubs';
+            END IF;
+        END $$;
+
+        -- Migration: Add quota_period column if it doesn't exist
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='clubs' AND column_name='quota_period'
+            ) THEN
+                ALTER TABLE clubs ADD COLUMN quota_period VARCHAR(10) NOT NULL DEFAULT 'daily';
+                RAISE NOTICE 'Added quota_period column to clubs';
             END IF;
         END $$;
 

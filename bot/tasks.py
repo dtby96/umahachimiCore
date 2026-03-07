@@ -233,7 +233,8 @@ class BotTasks:
                 try:
                     logger.info(f"⚙️ Processing scraped data for {club.club_name}...")
                     new_members, updated_members = await self.quota_calculator.process_scraped_data(
-                        club.club_id, scraped_data, current_date, current_day
+                        club.club_id, scraped_data, current_date, current_day,
+                        quota_period=club.quota_period
                     )
                     logger.info(f"✅ Data processed for {club.club_name}: {updated_members} members updated, {new_members} new members")
 
@@ -293,7 +294,9 @@ class BotTasks:
                             await self.notification_service.send_bomb_deactivation_notification(club.club_name, member)
 
                     # Send deficit notifications
-                    status_summary = await self.quota_calculator.get_member_status_summary(club.club_id, current_date)
+                    status_summary = await self.quota_calculator.get_member_status_summary(
+                        club.club_id, current_date, quota_period=club.quota_period
+                    )
                     if status_summary['behind']:
                         logger.info(f"📨 Sending deficit notifications for {club.club_name}...")
                         await self.notification_service.send_deficit_notifications(club.club_name, status_summary['behind'])
@@ -304,7 +307,9 @@ class BotTasks:
                 # STEP 7: Generate and send reports
                 try:
                     logger.info(f"📊 Generating daily report for {club.club_name}...")
-                    status_summary = await self.quota_calculator.get_member_status_summary(club.club_id, current_date)
+                    status_summary = await self.quota_calculator.get_member_status_summary(
+                        club.club_id, current_date, quota_period=club.quota_period
+                    )
 
                     # Only fetch bomb data if bombs are enabled
                     if club.bombs_enabled:
@@ -314,7 +319,7 @@ class BotTasks:
 
                     daily_reports = self.report_generator.create_daily_report(
                         club.club_name, club.daily_quota, status_summary, bombs_data, current_date,
-                        rank_data=rank_data
+                        rank_data=rank_data, quota_period=club.quota_period
                     )
 
                     for embed in daily_reports:

@@ -73,6 +73,19 @@ class QuotaHistory:
         return [cls(**dict(row)) for row in rows]
     
     @classmethod
+    async def get_for_member_date(cls, member_id: UUID, target_date: date) -> Optional['QuotaHistory']:
+        """Get a specific member's quota history for a given date"""
+        query = """
+            SELECT id, member_id, club_id, date, cumulative_fans, expected_fans, deficit_surplus, days_behind
+            FROM quota_history
+            WHERE member_id = $1 AND date = $2
+        """
+        row = await db.fetchrow(query, member_id, target_date)
+        if row:
+            return cls(**dict(row))
+        return None
+
+    @classmethod
     async def get_for_date(cls, club_id: UUID, date: date) -> List['QuotaHistory']:
         """Get all quota histories for a specific date in a club"""
         query = """
