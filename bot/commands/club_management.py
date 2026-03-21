@@ -38,11 +38,17 @@ class ClubManagementCommands(commands.Cog):
     
     @app_commands.command(name="add_club", description="Register a new club to track (Admin only)")
     @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.choices(quota_period=[
+        app_commands.Choice(name="Daily", value="daily"),
+        app_commands.Choice(name="Weekly", value="weekly"),
+        app_commands.Choice(name="Biweekly (every 2 weeks)", value="biweekly"),
+    ])
     async def add_club(self, interaction: discord.Interaction,
                        club_name: str,
                        scrape_url: str,
                        circle_id: str = None,
                        daily_quota: int = 1000000,
+                       quota_period: app_commands.Choice[str] = None,
                        timezone: str = "Europe/Amsterdam",
                        scrape_time: str = "16:00"):
         """Register a new club"""
@@ -88,16 +94,19 @@ class ClubManagementCommands(commands.Cog):
             # Normalise circle_id: treat empty string as None
             resolved_circle_id = circle_id if circle_id and circle_id != "" else None
             
+            resolved_quota_period = quota_period.value if quota_period else 'daily'
+
             club = await Club.create(
                 club_name=club_name,
                 scrape_url=scrape_url,
                 circle_id=resolved_circle_id,
                 guild_id=interaction.guild_id,
                 daily_quota=daily_quota,
+                quota_period=resolved_quota_period,
                 timezone=timezone,
                 scrape_time=scrape_time_obj
             )
-            
+
             # Format quota for display
             if daily_quota >= 1_000_000:
                 quota_formatted = f"{daily_quota / 1_000_000:.1f}M"
@@ -105,6 +114,8 @@ class ClubManagementCommands(commands.Cog):
                 quota_formatted = f"{daily_quota / 1_000:.1f}K"
             else:
                 quota_formatted = str(daily_quota)
+
+            period_label = {'daily': 'day', 'weekly': 'week', 'biweekly': '2 weeks'}.get(resolved_quota_period, 'day')
             
             embed = discord.Embed(
                 title="✅ Club Added",
@@ -123,7 +134,7 @@ class ClubManagementCommands(commands.Cog):
             
             embed.add_field(
                 name="Settings",
-                value=f"**Daily Quota:** {quota_formatted} fans\n"
+                value=f"**Quota:** {quota_formatted} fans per {period_label}\n"
                       f"**Scrape Time:** {scrape_time} {timezone}\n"
                       f"**Bomb Rules:** 3 days trigger, 7 days countdown",
                 inline=False
@@ -321,7 +332,7 @@ class ClubManagementCommands(commands.Cog):
             
             for club in clubs:
                 status = "✅ Active" if club.is_active else "❌ Inactive"
-                
+
                 # Format quota
                 if club.daily_quota >= 1_000_000:
                     quota_formatted = f"{club.daily_quota / 1_000_000:.1f}M"
@@ -329,6 +340,10 @@ class ClubManagementCommands(commands.Cog):
                     quota_formatted = f"{club.daily_quota / 1_000:.1f}K"
                 else:
                     quota_formatted = str(club.daily_quota)
+
+                period_label = {'daily': 'day', 'weekly': 'week', 'biweekly': '2 weeks'}.get(
+                    getattr(club, 'quota_period', 'daily'), 'day'
+                )
                 
                 # Scraper type indicator
                 if club.circle_id:
@@ -344,7 +359,7 @@ class ClubManagementCommands(commands.Cog):
 
                 embed.add_field(
                     name=f"{status} {club.club_name}",
-                    value=f"**Quota:** {quota_formatted} fans/day\n"
+                    value=f"**Quota:** {quota_formatted} fans/{period_label}\n"
                           f"**Schedule:** {club.get_scrape_time_str()} {club.timezone}"
                           f"{scraper_info}\n"
                           f"**Bombs:** {bomb_status}",
@@ -359,10 +374,16 @@ class ClubManagementCommands(commands.Cog):
     
     @app_commands.command(name="edit_club", description="Edit club settings (Admin only)")
     @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.choices(quota_period=[
+        app_commands.Choice(name="Daily", value="daily"),
+        app_commands.Choice(name="Weekly", value="weekly"),
+        app_commands.Choice(name="Biweekly (every 2 weeks)", value="biweekly"),
+    ])
     async def edit_club(self, interaction: discord.Interaction,
                        club: str,
                        circle_id: str = None,
                        daily_quota: int = None,
+                       quota_period: app_commands.Choice[str] = None,
                        scrape_time: str = None,
                        timezone: str = None,
                        bomb_trigger_days: int = None,
@@ -401,6 +422,8 @@ class ClubManagementCommands(commands.Cog):
                 updates['circle_id'] = circle_id if circle_id != "" else None
             if daily_quota is not None:
                 updates['daily_quota'] = daily_quota
+            if quota_period is not None:
+                updates['quota_period'] = quota_period.value
             if scrape_time is not None:
                 try:
                     hour, minute = map(int, scrape_time.split(':'))
@@ -444,6 +467,15 @@ class ClubManagementCommands(commands.Cog):
                 timestamp=discord.utils.utcnow()
             )
             
+            # Determine the effective quota_period for display (may have just been changed)
+            effective_period = updates.get('quota_period', club_obj.quota_period)
+            period_label = {'daily': 'day', 'weekly': 'week', 'biweekly': '2 weeks'}.get(effective_period, 'day')
+
+            # Warn if changing quota_period mid-month
+            period_warning = ""
+            if 'quota_period' in updates and updates['quota_period'] != club_obj.quota_period:
+                period_warning = "\n⚠️ Quota period changed mid-month — historical data may be inconsistent until the next monthly reset."
+
             changes_text = []
             for key, value in updates.items():
                 if key == 'circle_id':
@@ -458,7 +490,10 @@ class ClubManagementCommands(commands.Cog):
                         formatted = f"{value / 1_000:.1f}K"
                     else:
                         formatted = str(value)
-                    changes_text.append(f"**Daily Quota:** {formatted} fans")
+                    changes_text.append(f"**Quota:** {formatted} fans per {period_label}")
+                elif key == 'quota_period':
+                    period_names = {'daily': 'Daily', 'weekly': 'Weekly', 'biweekly': 'Biweekly'}
+                    changes_text.append(f"**Quota Period:** {period_names.get(value, value)}")
                 elif key == 'scrape_time':
                     changes_text.append(f"**Scrape Time:** {value}")
                 elif key == 'timezone':
@@ -475,10 +510,10 @@ class ClubManagementCommands(commands.Cog):
 
             embed.add_field(
                 name="Changes Applied",
-                value="\n".join(changes_text),
+                value="\n".join(changes_text) + period_warning,
                 inline=False
             )
-            
+
             embed.set_footer(text=f"Updated by {interaction.user}")
             
             await interaction.followup.send(embed=embed)

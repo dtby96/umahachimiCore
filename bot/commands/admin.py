@@ -108,9 +108,12 @@ class AdminCommands(commands.Cog):
             else:
                 formatted = str(amount)
 
+            period_label = {'daily': 'day', 'weekly': 'week', 'biweekly': '2 weeks'}.get(club_obj.quota_period, 'day')
+            period_name = {'daily': 'Daily', 'weekly': 'Weekly', 'biweekly': 'Biweekly'}.get(club_obj.quota_period, 'Daily')
+
             embed = discord.Embed(
                 title=f"✅ Quota Updated - {club}",
-                description=f"Daily quota has been set to **{formatted} fans/day**",
+                description=f"{period_name} quota has been set to **{formatted} fans/{period_label}**",
                 color=discord.Color.green(),
                 timestamp=discord.utils.utcnow()
             )
@@ -227,11 +230,13 @@ class AdminCommands(commands.Cog):
                 club_obj.club_id, current_date.year, current_date.month
             )
 
+            quota_period_label = {'daily': 'day', 'weekly': 'week', 'biweekly': '2 weeks'}.get(club_obj.quota_period, 'day')
+
             if not quota_reqs:
                 embed = discord.Embed(
                     title=f"📊 Quota History - {club} - Current Month",
                     description=f"No quota changes this month.\n"
-                                f"Using default: **{club_obj.daily_quota:,} fans/day**",
+                                f"Using default: **{club_obj.daily_quota:,} fans/{quota_period_label}**",
                     color=discord.Color.blue(),
                     timestamp=discord.utils.utcnow()
                 )
@@ -256,7 +261,7 @@ class AdminCommands(commands.Cog):
 
                 embed.add_field(
                     name=f"{quota_req.effective_date.strftime('%B %d, %Y')}",
-                    value=f"**{formatted} fans/day** ({amount:,})\n"
+                    value=f"**{formatted} fans/{quota_period_label}** ({amount:,})\n"
                           f"Set by: {quota_req.set_by or 'Unknown'}",
                     inline=False
                 )
@@ -385,7 +390,8 @@ class AdminCommands(commands.Cog):
             # Process scraped data
             await interaction.followup.send("⚙️ Processing data...")
             new_members, updated_members = await self.quota_calculator.process_scraped_data(
-                club_obj.club_id, scraped_data, current_date, current_day
+                club_obj.club_id, scraped_data, current_date, current_day,
+                quota_period=club_obj.quota_period
             )
 
             # Bomb management
@@ -403,7 +409,9 @@ class AdminCommands(commands.Cog):
                 logger.info(f"Skipping bomb management for {club_obj.club_name} (bombs disabled)")
 
             # Generate and send daily reports
-            status_summary = await self.quota_calculator.get_member_status_summary(club_obj.club_id, current_date)
+            status_summary = await self.quota_calculator.get_member_status_summary(
+                club_obj.club_id, current_date, quota_period=club_obj.quota_period
+            )
 
             # Only fetch bomb data if bombs are enabled
             if club_obj.bombs_enabled:
@@ -413,7 +421,7 @@ class AdminCommands(commands.Cog):
 
             daily_reports = self.report_generator.create_daily_report(
                 club_obj.club_name, club_obj.daily_quota, status_summary, bombs_data, current_date,
-                rank_data=rank_data
+                rank_data=rank_data, quota_period=club_obj.quota_period
             )
 
             for embed in daily_reports:

@@ -30,7 +30,8 @@ class ReportGenerator:
 
     def create_daily_report(self, club_name: str, daily_quota: int, status_summary: Dict,
                             bombs_data: List[Dict], report_date: date,
-                            rank_data: Optional[Dict] = None) -> List[discord.Embed]:
+                            rank_data: Optional[Dict] = None,
+                            quota_period: str = 'daily') -> List[discord.Embed]:
         """
         Create the main daily report embeds.
 
@@ -38,11 +39,26 @@ class ReportGenerator:
         """
         embeds = []
 
+        period_info = status_summary.get('period_info')
+
+        # Build description based on quota period
+        period_labels = {'daily': 'day', 'weekly': 'week', 'biweekly': '2 weeks'}
+        period_label = period_labels.get(quota_period, 'day')
+        quota_line = f"**Quota:** {self.format_fans_short(daily_quota)} fans per {period_label}"
+
+        description = f"**Date:** {report_date.strftime('%B %d, %Y')}\n{quota_line}"
+
+        if period_info:
+            p_num = period_info['period_number']
+            p_total = period_info['total_periods']
+            p_start = period_info['period_start'].strftime('%b %d')
+            p_end = period_info['period_end'].strftime('%b %d')
+            description += f"\n**Period:** {period_info['quota_label'].capitalize()} {p_num} of {p_total} ({p_start} – {p_end})"
+
         # Summary embed
         summary_embed = discord.Embed(
             title=f"📊 Daily Quota Report - {club_name}",
-            description=f"**Date:** {report_date.strftime('%B %d, %Y')}\n"
-                        f"**Daily Quota:** {self.format_fans_short(daily_quota)} fans per member",
+            description=description,
             color=COLOR_INFO,
             timestamp=discord.utils.utcnow()
         )
@@ -85,7 +101,7 @@ class ReportGenerator:
         if status_summary['on_track']:
             on_track_sections = self._split_into_sections(
                 status_summary['on_track'],
-                lambda item: self._format_member_line(item, is_behind=False),
+                lambda item: self._format_member_line(item, is_behind=False, quota_period=quota_period),
                 max_length=1000
             )
 
@@ -103,7 +119,7 @@ class ReportGenerator:
         if status_summary['behind']:
             behind_sections = self._split_into_sections(
                 status_summary['behind'],
-                lambda item: self._format_member_line(item, is_behind=True),
+                lambda item: self._format_member_line(item, is_behind=True, quota_period=quota_period),
                 max_length=1000
             )
 
@@ -130,11 +146,29 @@ class ReportGenerator:
 
         return embeds
 
-    def _format_member_line(self, item: Dict, is_behind: bool) -> str:
+    def _format_member_line(self, item: Dict, is_behind: bool, quota_period: str = 'daily') -> str:
         """Format a single member line for on-track or behind sections"""
         member = item['member']
         history = item['history']
 
+        if quota_period != 'daily' and 'period_start_fans' in item and 'period_info' in item:
+            period_info = item['period_info']
+            period_fans = history.cumulative_fans - item['period_start_fans']
+            period_quota = period_info['period_quota']
+            period_label = period_info['quota_label']  # 'week' or 'biweek'
+
+            if is_behind:
+                deficit = abs(history.deficit_surplus)
+                return (f"**{member.trainer_name}**: "
+                        f"{self.format_fans_short(period_fans)}/{self.format_fans_short(period_quota)} this {period_label} "
+                        f"(-{self.format_fans_short(deficit)} overall)")
+            else:
+                surplus = history.deficit_surplus
+                return (f"**{member.trainer_name}**: "
+                        f"{self.format_fans_short(period_fans)}/{self.format_fans_short(period_quota)} this {period_label} "
+                        f"(+{self.format_fans_short(surplus)} overall)")
+
+        # Default daily format
         if is_behind:
             deficit = abs(history.deficit_surplus)
             days_behind = history.days_behind

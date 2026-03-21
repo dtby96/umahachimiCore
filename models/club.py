@@ -21,6 +21,7 @@ class Club:
     circle_id: Optional[str]
     guild_id: Optional[int]
     daily_quota: int
+    quota_period: str
     timezone: str
     scrape_time: time
     bomb_trigger_days: int
@@ -37,24 +38,25 @@ class Club:
     @classmethod
     async def create(cls, club_name: str, scrape_url: str, circle_id: Optional[str] = None,
                      guild_id: Optional[int] = None,
-                     daily_quota: int = 1000000, timezone: str = 'Europe/Amsterdam', 
-                     scrape_time: time = None, bomb_trigger_days: int = 3, 
+                     daily_quota: int = 1000000, quota_period: str = 'daily',
+                     timezone: str = 'Europe/Amsterdam',
+                     scrape_time: time = None, bomb_trigger_days: int = 3,
                      bomb_countdown_days: int = 7) -> 'Club':
         """Create a new club"""
         if scrape_time is None:
             scrape_time = time(16, 0)
-        
+
         query = """
-            INSERT INTO clubs (club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                             bomb_trigger_days, bomb_countdown_days)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                     bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
-                     alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
-                     created_at, updated_at
+            INSERT INTO clubs (club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                             timezone, scrape_time, bomb_trigger_days, bomb_countdown_days)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                     timezone, scrape_time, bomb_trigger_days, bomb_countdown_days, bombs_enabled,
+                     is_active, report_channel_id, alert_channel_id, monthly_info_channel_id,
+                     monthly_info_message_id, created_at, updated_at
         """
-        row = await db.fetchrow(query, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, 
-                                scrape_time, bomb_trigger_days, bomb_countdown_days)
+        row = await db.fetchrow(query, club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                                timezone, scrape_time, bomb_trigger_days, bomb_countdown_days)
         logger.info(f"Created new club: {club_name} (circle_id: {circle_id}, guild_id: {guild_id})")
         return cls(**dict(row))
     
@@ -62,10 +64,10 @@ class Club:
     async def get_by_id(cls, club_id: UUID) -> Optional['Club']:
         """Get club by ID"""
         query = """
-            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
-                   alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
-                   created_at, updated_at
+            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                   timezone, scrape_time, bomb_trigger_days, bomb_countdown_days, bombs_enabled,
+                   is_active, report_channel_id, alert_channel_id, monthly_info_channel_id,
+                   monthly_info_message_id, created_at, updated_at
             FROM clubs
             WHERE club_id = $1
         """
@@ -78,10 +80,10 @@ class Club:
     async def get_by_name(cls, club_name: str) -> Optional['Club']:
         """Get club by name"""
         query = """
-            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
-                   alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
-                   created_at, updated_at
+            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                   timezone, scrape_time, bomb_trigger_days, bomb_countdown_days, bombs_enabled,
+                   is_active, report_channel_id, alert_channel_id, monthly_info_channel_id,
+                   monthly_info_message_id, created_at, updated_at
             FROM clubs
             WHERE club_name = $1
         """
@@ -94,10 +96,10 @@ class Club:
     async def get_all_active(cls) -> List['Club']:
         """Get all active clubs"""
         query = """
-            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
-                   alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
-                   created_at, updated_at
+            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                   timezone, scrape_time, bomb_trigger_days, bomb_countdown_days, bombs_enabled,
+                   is_active, report_channel_id, alert_channel_id, monthly_info_channel_id,
+                   monthly_info_message_id, created_at, updated_at
             FROM clubs
             WHERE is_active = TRUE
             ORDER BY club_name
@@ -109,10 +111,10 @@ class Club:
     async def get_all(cls) -> List['Club']:
         """Get all clubs (active and inactive)"""
         query = """
-            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
-                   alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
-                   created_at, updated_at
+            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                   timezone, scrape_time, bomb_trigger_days, bomb_countdown_days, bombs_enabled,
+                   is_active, report_channel_id, alert_channel_id, monthly_info_channel_id,
+                   monthly_info_message_id, created_at, updated_at
             FROM clubs
             ORDER BY club_name
         """
@@ -123,10 +125,10 @@ class Club:
     async def get_all_for_guild(cls, guild_id: int) -> List['Club']:
         """Get clubs registered to a specific guild, plus any pre-migration clubs (guild_id IS NULL)"""
         query = """
-            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, timezone, scrape_time,
-                   bomb_trigger_days, bomb_countdown_days, bombs_enabled, is_active, report_channel_id,
-                   alert_channel_id, monthly_info_channel_id, monthly_info_message_id,
-                   created_at, updated_at
+            SELECT club_id, club_name, scrape_url, circle_id, guild_id, daily_quota, quota_period,
+                   timezone, scrape_time, bomb_trigger_days, bomb_countdown_days, bombs_enabled,
+                   is_active, report_channel_id, alert_channel_id, monthly_info_channel_id,
+                   monthly_info_message_id, created_at, updated_at
             FROM clubs
             WHERE guild_id = $1 OR guild_id IS NULL
             ORDER BY club_name
@@ -160,8 +162,8 @@ class Club:
     
     async def update_settings(self, **kwargs):
         """Update club settings"""
-        valid_fields = {'scrape_url', 'circle_id', 'daily_quota', 'timezone', 'scrape_time',
-                       'bomb_trigger_days', 'bomb_countdown_days', 'bombs_enabled',
+        valid_fields = {'scrape_url', 'circle_id', 'daily_quota', 'quota_period', 'timezone',
+                       'scrape_time', 'bomb_trigger_days', 'bomb_countdown_days', 'bombs_enabled',
                        'report_channel_id', 'alert_channel_id'}
 
         updates = {k: v for k, v in kwargs.items() if k in valid_fields}
