@@ -149,6 +149,19 @@ class AuthorCommands(commands.Cog):
         return " ".join(parts) if parts else "< 1m"
 
 
+    @app_commands.command(name="privacy", description="View UmaCore's privacy policy and terms of service")
+    async def privacy(self, interaction: discord.Interaction):
+        """Display links to the privacy policy and terms of service"""
+        embed = discord.Embed(
+            title="UmaCore — Legal",
+            description="UmaCore stores only the minimum data required to function (server IDs, channel IDs, and optionally Discord User IDs for linked accounts). No message content is stored.",
+            color=discord.Color.blurple()
+        )
+        embed.add_field(name="Privacy Policy", value="[View Privacy Policy](https://oHaruki.github.io/UmaCore/privacy-policy/)", inline=True)
+        embed.add_field(name="Terms of Service", value="[View Terms of Service](https://oHaruki.github.io/UmaCore/terms-of-service/)", inline=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 async def setup(bot):
     """Setup function for loading the cog"""
     await bot.add_cog(AuthorCommands(bot))
