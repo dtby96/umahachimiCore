@@ -29,7 +29,7 @@ class QuotaCommands(commands.Cog):
     
     @app_commands.command(name="set_report_channel", description="Set the channel for daily reports")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_report_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    async def set_report_channel(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
         """Set the channel where daily reports will be posted"""
         await interaction.response.defer()
         
@@ -52,7 +52,7 @@ class QuotaCommands(commands.Cog):
     
     @app_commands.command(name="set_alert_channel", description="Set the channel for alerts (bombs, kicks)")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_alert_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    async def set_alert_channel(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
         """Set the channel where alerts (bomb activations, kick warnings) will be posted"""
         await interaction.response.defer()
         
