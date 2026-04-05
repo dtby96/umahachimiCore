@@ -5,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
+from typing import Union
 import logging
 import pytz
 
@@ -33,11 +34,34 @@ class SettingsCommands(commands.Cog):
         except Exception as e:
             logger.error(f"Error in club autocomplete: {e}")
             return []
-    
-    @app_commands.command(name="set_report_channel", description="Set the channel for daily reports")
+
+    async def resolve_channel(self, guild: discord.Guild, channel_id: int):
+        """Resolve a channel or thread by ID"""
+        # Try cache first
+        channel = self.bot.get_channel(channel_id)
+        if channel:
+            return channel
+        
+        # Try fetching thread from all text channels
+        for text_channel in guild.text_channels:
+            try:
+                thread = text_channel.get_thread(channel_id)
+                if thread:
+                    return thread
+            except Exception:
+                pass
+        
+        # Last resort: fetch directly from API
+        try:
+            channel = await self.bot.fetch_channel(channel_id)
+            return channel
+        except Exception:
+            return None
+
+    @app_commands.command(name="set_report_channel", description="Set the channel or thread for daily reports")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_report_channel(self, interaction: discord.Interaction, channel: discord.TextChannel, club: str):
-        """Set the channel where daily reports will be posted"""
+    async def set_report_channel(self, interaction: discord.Interaction, club: str, channel_id: str):
+        """Set the channel where daily reports will be posted. Paste a channel or thread ID."""
         await interaction.response.defer()
         
         try:
@@ -49,7 +73,19 @@ class SettingsCommands(commands.Cog):
             if not club_obj.belongs_to_guild(interaction.guild_id):
                 await interaction.followup.send(f"❌ Club '{club}' is not registered in this server.")
                 return
-            
+
+            try:
+                parsed_id = int(channel_id.strip().replace('<#', '').replace('>', ''))
+            except ValueError:
+                await interaction.followup.send("❌ Invalid channel ID. Right-click a channel or thread and copy its ID.")
+                return
+
+            channel = await self.resolve_channel(interaction.guild, parsed_id)
+
+            if not channel:
+                await interaction.followup.send("❌ Channel or thread not found. Make sure the ID is correct and the bot has access.")
+                return
+
             await club_obj.set_channels(report_channel_id=channel.id)
             
             embed = discord.Embed(
@@ -66,10 +102,10 @@ class SettingsCommands(commands.Cog):
             logger.error(f"Error in set_report_channel: {e}", exc_info=True)
             await interaction.followup.send(f"❌ Error: {str(e)}")
     
-    @app_commands.command(name="set_alert_channel", description="Set the channel for alerts (bombs, kicks)")
+    @app_commands.command(name="set_alert_channel", description="Set the channel or thread for alerts (bombs, kicks)")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_alert_channel(self, interaction: discord.Interaction, channel: discord.TextChannel, club: str):
-        """Set the channel where alerts will be posted"""
+    async def set_alert_channel(self, interaction: discord.Interaction, club: str, channel_id: str):
+        """Set the channel where alerts will be posted. Paste a channel or thread ID."""
         await interaction.response.defer()
         
         try:
@@ -81,7 +117,19 @@ class SettingsCommands(commands.Cog):
             if not club_obj.belongs_to_guild(interaction.guild_id):
                 await interaction.followup.send(f"❌ Club '{club}' is not registered in this server.")
                 return
-            
+
+            try:
+                parsed_id = int(channel_id.strip().replace('<#', '').replace('>', ''))
+            except ValueError:
+                await interaction.followup.send("❌ Invalid channel ID. Right-click a channel or thread and copy its ID.")
+                return
+
+            channel = await self.resolve_channel(interaction.guild, parsed_id)
+
+            if not channel:
+                await interaction.followup.send("❌ Channel or thread not found. Make sure the ID is correct and the bot has access.")
+                return
+
             await club_obj.set_channels(alert_channel_id=channel.id)
             
             embed = discord.Embed(
@@ -122,7 +170,7 @@ class SettingsCommands(commands.Cog):
             
             # Report channel
             if club_obj.report_channel_id:
-                report_channel = self.bot.get_channel(club_obj.report_channel_id)
+                report_channel = await self.resolve_channel(interaction.guild, club_obj.report_channel_id)
                 if report_channel:
                     embed.add_field(
                         name="📊 Daily Reports Channel",
@@ -144,7 +192,7 @@ class SettingsCommands(commands.Cog):
             
             # Alert channel
             if club_obj.alert_channel_id:
-                alert_channel = self.bot.get_channel(club_obj.alert_channel_id)
+                alert_channel = await self.resolve_channel(interaction.guild, club_obj.alert_channel_id)
                 if alert_channel:
                     embed.add_field(
                         name="🚨 Alerts Channel",
@@ -167,7 +215,7 @@ class SettingsCommands(commands.Cog):
             # Monthly info board
             channel_id, message_id = await club_obj.get_monthly_info_location()
             if channel_id and message_id:
-                info_channel = self.bot.get_channel(channel_id)
+                info_channel = await self.resolve_channel(interaction.guild, channel_id)
                 if info_channel:
                     embed.add_field(
                         name="📋 Monthly Info Board",
