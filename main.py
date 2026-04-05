@@ -5,6 +5,7 @@ import asyncio
 import logging
 import sys
 
+from keepalive import keep_alive
 from config.database import db
 from config.settings import DISCORD_TOKEN, DATABASE_URL
 from bot import create_bot
@@ -60,6 +61,7 @@ async def main():
 
 
 if __name__ == "__main__":
+    keep_alive()  # keepalive
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
