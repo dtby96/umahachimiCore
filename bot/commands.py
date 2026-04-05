@@ -5,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, date
+from typing import Union
 import logging
 import pytz
 
@@ -26,14 +27,59 @@ class QuotaCommands(commands.Cog):
         self.bomb_manager = BombManager()
         self.report_generator = ReportGenerator()
         self.timezone = pytz.timezone(TIMEZONE)
-    
-    @app_commands.command(name="set_report_channel", description="Set the channel for daily reports")
+
+    async def resolve_channel(self, guild: discord.Guild, channel_id: int):
+        """Resolve a channel or thread by ID"""
+        # Try cache first
+        channel = self.bot.get_channel(channel_id)
+        if channel:
+            return channel
+        
+        # Try fetching thread from all text channels
+        for text_channel in guild.text_channels:
+            try:
+                thread = text_channel.get_thread(channel_id)
+                if thread:
+                    return thread
+            except Exception:
+                pass
+        
+        # Try fetching archived threads
+        for text_channel in guild.text_channels:
+            try:
+                async for thread in text_channel.archived_threads():
+                    if thread.id == channel_id:
+                        return thread
+            except Exception:
+                pass
+        
+        # Last resort: fetch directly from API
+        try:
+            channel = await self.bot.fetch_channel(channel_id)
+            return channel
+        except Exception:
+            return None
+
+    @app_commands.command(name="set_report_channel", description="Set the channel or thread for daily reports")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_report_channel(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
-        """Set the channel where daily reports will be posted"""
+    async def set_report_channel(self, interaction: discord.Interaction, channel_id: str):
+        """Set the channel where daily reports will be posted. Paste a channel or thread ID."""
         await interaction.response.defer()
         
         try:
+            # Parse the channel ID
+            try:
+                parsed_id = int(channel_id.strip().replace('<#', '').replace('>', ''))
+            except ValueError:
+                await interaction.followup.send("❌ Invalid channel ID. Right-click a channel or thread and copy its ID.")
+                return
+
+            channel = await self.resolve_channel(interaction.guild, parsed_id)
+
+            if not channel:
+                await interaction.followup.send("❌ Channel or thread not found. Make sure the ID is correct and the bot has access.")
+                return
+
             await BotSettings.set_report_channel_id(channel.id)
             
             embed = discord.Embed(
@@ -50,13 +96,26 @@ class QuotaCommands(commands.Cog):
             logger.error(f"Error in set_report_channel: {e}", exc_info=True)
             await interaction.followup.send(f"❌ Error: {str(e)}")
     
-    @app_commands.command(name="set_alert_channel", description="Set the channel for alerts (bombs, kicks)")
+    @app_commands.command(name="set_alert_channel", description="Set the channel or thread for alerts (bombs, kicks)")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_alert_channel(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
-        """Set the channel where alerts (bomb activations, kick warnings) will be posted"""
+    async def set_alert_channel(self, interaction: discord.Interaction, channel_id: str):
+        """Set the channel where alerts will be posted. Paste a channel or thread ID."""
         await interaction.response.defer()
         
         try:
+            # Parse the channel ID
+            try:
+                parsed_id = int(channel_id.strip().replace('<#', '').replace('>', ''))
+            except ValueError:
+                await interaction.followup.send("❌ Invalid channel ID. Right-click a channel or thread and copy its ID.")
+                return
+
+            channel = await self.resolve_channel(interaction.guild, parsed_id)
+
+            if not channel:
+                await interaction.followup.send("❌ Channel or thread not found. Make sure the ID is correct and the bot has access.")
+                return
+
             await BotSettings.set_alert_channel_id(channel.id)
             
             embed = discord.Embed(
@@ -91,7 +150,7 @@ class QuotaCommands(commands.Cog):
             
             # Report channel
             if report_channel_id:
-                report_channel = self.bot.get_channel(report_channel_id)
+                report_channel = await self.resolve_channel(interaction.guild, report_channel_id)
                 if report_channel:
                     embed.add_field(
                         name="📊 Daily Reports Channel",
@@ -107,7 +166,7 @@ class QuotaCommands(commands.Cog):
             else:
                 from config.settings import CHANNEL_ID
                 if CHANNEL_ID:
-                    channel = self.bot.get_channel(CHANNEL_ID)
+                    channel = await self.resolve_channel(interaction.guild, CHANNEL_ID)
                     embed.add_field(
                         name="📊 Daily Reports Channel",
                         value=f"Using .env fallback: {channel.mention if channel else f'ID: {CHANNEL_ID}'}",
@@ -122,7 +181,7 @@ class QuotaCommands(commands.Cog):
             
             # Alert channel
             if alert_channel_id:
-                alert_channel = self.bot.get_channel(alert_channel_id)
+                alert_channel = await self.resolve_channel(interaction.guild, alert_channel_id)
                 if alert_channel:
                     embed.add_field(
                         name="🚨 Alerts Channel",
@@ -308,8 +367,8 @@ class QuotaCommands(commands.Cog):
             if not alert_channel_id:
                 alert_channel_id = report_channel_id
             
-            report_channel = self.bot.get_channel(report_channel_id)
-            alert_channel = self.bot.get_channel(alert_channel_id)
+            report_channel = await self.resolve_channel(interaction.guild, report_channel_id)
+            alert_channel = await self.resolve_channel(interaction.guild, alert_channel_id)
             
             if not report_channel:
                 await interaction.followup.send(f"❌ Report channel not found. Use `/set_report_channel` first.")
@@ -550,7 +609,6 @@ class QuotaCommands(commands.Cog):
                 await interaction.followup.send(f"ℹ️ {trainer_name} is already inactive")
                 return
             
-            # Use manual=True to prevent auto-reactivation
             await member.deactivate(manual=True)
             
             embed = discord.Embed(
