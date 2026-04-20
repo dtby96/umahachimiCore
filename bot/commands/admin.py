@@ -50,7 +50,7 @@ class AdminCommands(commands.Cog):
                     try:
                         message = await channel.fetch_message(message_id)
                         updated_embed = await self.monthly_info_service.create_monthly_info_embed(
-                            club_obj.club_id, club_obj.club_name, current_date
+                            club_obj.club_id, club_obj.club_name, current_date, club_obj.quota_period
                         )
                         await message.edit(embed=updated_embed)
                         logger.info(f"Auto-updated monthly info board for {club_obj.club_name}")
@@ -196,7 +196,8 @@ class AdminCommands(commands.Cog):
             embed = await self.monthly_info_service.create_monthly_info_embed(
                 club_obj.club_id,
                 club_obj.club_name,
-                current_date
+                current_date,
+                club_obj.quota_period
             )
 
             await message.edit(embed=embed)
