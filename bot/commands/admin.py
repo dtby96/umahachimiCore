@@ -85,8 +85,11 @@ class AdminCommands(commands.Cog):
                 await interaction.followup.send("❌ Quota amount must be positive")
                 return
 
-            if amount > 10_000_000:
-                await interaction.followup.send("❌ Quota amount seems unreasonably high (>10M). Please check your input.")
+            period_caps = {'daily': 10_000_000, 'weekly': 100_000_000, 'biweekly': 200_000_000}
+            max_quota = period_caps.get(club_obj.quota_period, 10_000_000)
+            if amount > max_quota:
+                cap_label = f"{max_quota // 1_000_000}M"
+                await interaction.followup.send(f"❌ Quota amount seems unreasonably high (>{cap_label} for {club_obj.quota_period} quota). Please check your input.")
                 return
 
             club_tz = pytz.timezone(club_obj.timezone)
