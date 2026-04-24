@@ -80,7 +80,7 @@ class UmaMoeAPIScraper(BaseScraper):
             
             logger.info(f"Fetching data from Uma.moe API for circle {self.circle_id}...")
             
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(headers={"Accept-Encoding": "gzip, deflate"}) as session:
                 # Primary fetch: the month we're actually reporting on
                 primary_data = await self._fetch_month(session, year, month)
                 if not primary_data:
